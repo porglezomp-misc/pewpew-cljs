@@ -7,13 +7,14 @@
   (:require-macros [cljs.core.async.macros :refer [go]]
                    [reagent.ratom :refer [reaction]]))
 
-(enable-console-print!)
-
 (def stage (r/adapt-react-class js/ReactPIXI.Stage))
 (def sprite (r/adapt-react-class js/ReactPIXI.Sprite))
 (def container (r/adapt-react-class js/ReactPIXI.DisplayObjectContainer))
 
 (defn indexed [s] (map-indexed vector s))
+(defn log [x] (.log js/console x))
+
+(set! js/PIXI.SCALE_MODES.DEFAULT js/PIXI.SCALE_MODES.NEAREST)
 
 ;; define your app data so that it doesn't get over-written on reload
 (defonce game-world (r/atom {:tilemap nil}))
@@ -40,6 +41,14 @@
 (def tile-textures
   (r/track! make-tile-textures))
 
+(defn find-spawn-points
+  []
+  (let [objects (get-in @game-world [:tilemap :objects])]
+    (filter #(-> % :type (= "Spawn")) objects)))
+
+(def spawn-points
+  (r/track! find-spawn-points))
+
 (defn tile
   [{:keys [x y texture]}]
   (let [texture (@tile-textures texture)]
@@ -60,13 +69,16 @@
 
 (defn tilemap
   [the-map]
-  [container {:x 0 :y 0}
+  [container {:x 7 :y 90 :scale (js/PIXI.Point. 1 1)}
    (for [the-layer (:layers the-map)]
      ^{:key (:name the-layer)} [layer the-layer])])
 
 (defn game-root
   [world]
-  [stage {:width 500 :height :300}
+  [stage {:width 400 :height 300
+          :backgroundcolor (-> (get-in @world [:tilemap :background-color])
+                             (clojure.string/replace #"#" "0x")
+                             js/Number)}
    [tilemap (:tilemap @world)]])
 
 (r/render-component [game-root game-world]
@@ -78,6 +90,10 @@
   ;; your application
   #_(swap! app-state update-in [:__figwheel_counter] inc))
 
-(go
-  (let [tilemap (<! (tmx/url->tmx "/map.tmx"))]
-    (swap! game-world assoc-in [:tilemap] tilemap)))
+(defn load-map!
+  [map-url]
+  (go
+    (let [tilemap (<! (tmx/url->tmx map-url))]
+      (swap! game-world assoc-in [:tilemap] tilemap))))
+
+(load-map! "/map.tmx")

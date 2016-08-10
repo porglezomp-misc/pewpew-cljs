@@ -4,6 +4,8 @@
             [cljs-http.client :as http]
             [cljs.core.async :refer [<! >!]]))
 
+(defn log [x] (.log js/console x))
+
 (defn ->tileset
   [obj]
   (let [{:keys [firstgid name tilewidth tileheight tilecount columns]} (:attributes obj)
@@ -36,6 +38,24 @@
      :height (js/Number height)
      :data data}))
 
+(defn ->object
+  [obj]
+  (-> obj
+    :attributes
+    (update-in [:id] js/Number)
+    (update-in [:x] js/Number)
+    (update-in [:y] js/Number)
+    (update-in [:width] js/Number)
+    (update-in [:height] js/Number)))
+
+(defn ->objectgroup
+  [objgroup]
+  (let [groupname (-> objgroup :attributes :name)]
+    (for [obj (:content objgroup)]
+      (-> obj
+        ->object
+        (assoc :group groupname)))))
+
 (defn ->tmx
   [obj]
   (let [{:keys [width height tilewidth tileheight backgroundcolor]} (:attributes obj)
@@ -47,9 +67,19 @@
         layers (->> content
                  (filter #(-> % :tag (= :layer)))
                  (map ->layer)
-                 vec)]
-    {:tilesets tilesets
-     :layers layers}))
+                 vec)
+        objects (->> content
+                  (filter #(-> % :tag (= :objectgroup)))
+                  (mapcat ->objectgroup)
+                  vec)]
+    {:width width
+     :height height
+     :tile-width tilewidth
+     :tile-height tileheight
+     :background-color backgroundcolor
+     :tilesets tilesets
+     :layers layers
+     :objects objects}))
 
 (defn url->tmx
   [url]
