@@ -13,7 +13,9 @@
                  [reagent "0.6.0-rc"]
                  [org.clojure/core.async "0.2.385"]
                  [cljsjs/react-pixi "0.8.1-0"]
-                 [com.taoensso/sente "1.10.0"]]
+                 [com.taoensso/sente "1.10.0"]
+                 [funcool/tubax "0.2.0"]
+                 [cljs-http "0.1.41"]]
 
   :plugins [[lein-figwheel "0.5.4-7"]
             [lein-cljsbuild "1.1.3" :exclusions [[org.clojure/clojure]]]]
