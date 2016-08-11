@@ -18,6 +18,7 @@
 
 ;; define your app data so that it doesn't get over-written on reload
 (defonce game-world (r/atom {:tilemap nil}))
+
 (def tilemap-texture (.fromImage js/PIXI.Texture "/img/tileset0.png"))
 
 (defn make-tile-texture
@@ -27,31 +28,25 @@
         frame (js/PIXI.Rectangle. x y w h)]
     (js/PIXI.Texture. tilemap-texture frame)))
 
-(defn make-tile-textures
-  []
-  (let [tilesets @(r/cursor game-world [:tilemap :tilesets])]
-    (apply merge
-      (for [tileset tilesets
-            tileid (range (:tilecount tileset))]
-        (let [id (+ (:firstgid tileset) tileid)
-              [w h] (:tilesize tileset)
-              [x y] ((juxt mod quot) tileid (:rows tileset))]
-          {id (make-tile-texture tilemap-texture x y w h)})))))
-
 (def tile-textures
-  (r/track! make-tile-textures))
-
-(defn find-spawn-points
-  []
-  (let [objects (get-in @game-world [:tilemap :objects])]
-    (filter #(-> % :type (= "Spawn")) objects)))
+  (reaction
+    (if-let [tilesets (get-in @game-world [:tilemap :tilesets])]
+      (apply merge
+        (for [tileset tilesets
+              tileid (range (:tilecount tileset))]
+          (let [id (+ (:firstgid tileset) tileid)
+                [w h] (:tilesize tileset)
+                [x y] ((juxt mod quot) tileid (:rows tileset))]
+            {id (make-tile-texture tilemap-texture x y w h)}))))))
 
 (def spawn-points
-  (r/track! find-spawn-points))
+  (reaction
+    (if-let [objects (get-in @game-world [:tilemap :objects])]
+      (filter #(-> % :type (= "Spawn")) objects))))
 
 (defn tile
   [{:keys [x y texture]}]
-  (let [texture (@tile-textures texture)]
+  (let [texture (get @tile-textures texture)]
     [sprite {:texture texture :x x :y y}]))
 
 (defn tile-row
@@ -76,7 +71,7 @@
 (defn game-root
   [world]
   [stage {:width 400 :height 300
-          :backgroundcolor (-> (get-in @world [:tilemap :background-color])
+          :backgroundcolor (some-> (get-in @world [:tilemap :background-color])
                              (clojure.string/replace #"#" "0x")
                              js/Number)}
    [tilemap (:tilemap @world)]])
