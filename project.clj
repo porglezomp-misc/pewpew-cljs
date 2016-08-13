@@ -15,7 +15,8 @@
                  [cljsjs/react-pixi "0.8.1-0"]
                  [com.taoensso/sente "1.10.0"]
                  [funcool/tubax "0.2.0"]
-                 [cljs-http "0.1.41"]]
+                 [cljs-http "0.1.41"]
+                 [devcards "0.2.1-7"]]
 
   :plugins [[lein-figwheel "0.5.4-7"]
             [lein-cljsbuild "1.1.3" :exclusions [[org.clojure/clojure]]]]
@@ -42,6 +43,19 @@
                            :asset-path "js/compiled/out"
                            :output-to "resources/public/js/compiled/pewpew.js"
                            :output-dir "resources/public/js/compiled/out"
+                           :source-map-timestamp true
+                           ;; To console.log CLJS data-structures make sure you enable devtools in Chrome
+                           ;; https://github.com/binaryage/cljs-devtools
+                           :preloads [devtools.preload]}}
+               {:id "devcards"
+                :source-paths ["src"]
+                :figwheel {:on-jsload "pewpew.core/on-js-reload"
+                           :devcards true
+                           :open-urls ["http://localhost:3449/index.html"]}
+                :compiler {:main pewpew.core
+                           :asset-path "js/compiled/devcards_out"
+                           :output-to "resources/public/js/compiled/pewpew_devcards.js"
+                           :output-dir "resources/public/js/compiled/devcards_out"
                            :source-map-timestamp true
                            ;; To console.log CLJS data-structures make sure you enable devtools in Chrome
                            ;; https://github.com/binaryage/cljs-devtools
@@ -83,7 +97,7 @@
              ;; :open-file-command "myfile-opener"
 
              ;; if you are using emacsclient you can just use
-             ;; :open-file-command "emacsclient"
+             :open-file-command "emacsclient"
 
              ;; if you want to disable the REPL
              ;; :repl false

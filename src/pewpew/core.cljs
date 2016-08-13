@@ -1,11 +1,15 @@
 (ns pewpew.core
   (:require [cljs.core.async :as async :refer [<! >!]]
             cljsjs.react-pixi
+            [pewpew.bbox :as bbox]
+            [pewpew.interval :as interval]
             [reagent.core :as r]
             [taoensso.sente :as sente]
             [tmx.core :as tmx])
-  (:require-macros [cljs.core.async.macros :refer [go]]
-                   [reagent.ratom :refer [reaction]]))
+  (:require-macros
+   [cljs.core.async.macros :refer [go]]
+   [reagent.ratom :refer [reaction]]))
+
 
 (def stage (r/adapt-react-class js/ReactPIXI.Stage))
 (def sprite (r/adapt-react-class js/ReactPIXI.Sprite))
