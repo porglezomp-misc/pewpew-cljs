@@ -22,6 +22,14 @@
 ;; define your app data so that it doesn't get over-written on reload
 (defonce game-world (r/atom {:tilemap nil}))
 
+(defn make-world-coordinate-scale []
+  (js/PIXI.Point. 16 -16))
+(def world-coordinate-scale (r/track! make-world-coordinate-scale))
+
+(defn make-object-coordinate-scale []
+  (js/PIXI.Point. (/ 1 16) (/ -1 16)))
+(def object-coordinate-scale (r/track! make-object-coordinate-scale))
+
 (def tilemap-texture (.fromImage js/PIXI.Texture "/img/tileset0.png"))
 
 (defn make-tile-texture
@@ -33,7 +41,7 @@
 
 (def tile-textures
   (reaction
-   (if-let [tilesets (get-in @game-world [:tilemap :tilesets])]
+   (when-let [tilesets (get-in @game-world [:tilemap :tilesets])]
      (apply merge
             (for [tileset tilesets
                   tileid (range (:tilecount tileset))]
@@ -44,7 +52,7 @@
 
 (def spawn-points
   (reaction
-   (if-let [objects (get-in @game-world [:tilemap :objects])]
+   (when-let [objects (get-in @game-world [:tilemap :objects])]
      (filter #(-> % :type (= "Spawn")) objects))))
 
 (def player-texture (.fromImage js/PIXI.Texture "/img/player0.png"))
@@ -93,14 +101,14 @@
 (defn tile
   [{:keys [x y texture]}]
   (let [texture (get @tile-textures texture)]
-    [sprite {:texture texture :x x :y y}]))
+    [sprite {:texture texture :x x :y y :scale @object-coordinate-scale}]))
 
 (defn tile-row
   [i row]
-  [container {:y (* i 16)}
+  [container {:y i}
    (for [[i tile-id] (indexed row)]
      (when (pos? tile-id)
-       ^{:key i} [tile {:x (* i 16) :y 0 :texture tile-id}]))])
+       ^{:key i} [tile {:x i :y 0 :texture tile-id}]))])
 
 (defn layer
   [the-layer]
@@ -116,7 +124,10 @@
 
 (defn player
   [{:keys [x y]}]
-  [sprite {:x x :y y :texture (player-frames 0)}])
+  [sprite {:x x :y y
+           :texture (player-frames 0)
+           :scale @object-coordinate-scale
+           :anchor (js/PIXI.Point. 0.5 0)}])
 
 (defn game-root
   [world]
@@ -124,7 +135,7 @@
           :backgroundcolor (some-> (get-in @world [:tilemap :background-color])
                                    (clojure.string/replace #"#" "0x")
                                    js/Number)}
-   [container {:x 7 :y 90 :scale (js/PIXI.Point. 1 1)}
+   [container {:x 8 :y (- 300 16) :scale @world-coordinate-scale}
     [tilemap (:tilemap @world)]
     (for [[i the-player] (indexed (:players @world))]
       ^{:key i} [player the-player])]])
@@ -141,7 +152,11 @@
 (defn load-map!
   [map-url]
   (go
-    (let [tilemap (<! (tmx/url->tmx map-url))]
+    (let [tilemap (<! (tmx/url->tmx map-url))
+          flipped-layers (->> (:layers tilemap)
+                              (map #(update-in % [:data] reverse))
+                              vec)
+          tilemap (assoc tilemap :layers flipped-layers)]
       (swap! game-world assoc-in [:tilemap] tilemap))))
 
 (load-map! "/map.tmx")
