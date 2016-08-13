@@ -1,9 +1,11 @@
 (ns pewpew.collision
   (:require [pewpew.bbox :as bbox]
-            [pewpew.interval :as interval])
+            [pewpew.interval :as interval]
+            [pewpew.util :as util]
+            [reagent.core :as r])
   (:require-macros
    [cljs.test :refer [is]]
-   [devcards.core :as dc :refer [deftest]]))
+   [devcards.core :as dc :refer [deftest defcard defcard-rg]]))
 
 (defn overlap?
   "Returns the overlap of two bounding boxes, or nil if they don't overlap."
@@ -35,3 +37,14 @@
   "The displacement will always be in the direction that minimizes the motion."
   (is (= (liberate-motion [0 0 10 10] [0 1 10 11]) [0 -9]))
   (is (= (liberate-motion [0 1 10 11] [0 0 10 10]) [0 9])))
+
+(defcard-rg box-resolution
+  (let [fixed [0 30 30 60]
+        a [5 10 35 40]
+        b [10 35 40 65]]
+    [util/boxes-component {:width 60 :height 65}
+     {:box fixed}
+     {:box a :style {:border "dashed red 1px"}}
+     {:box (bbox/offset-by a (liberate-motion a fixed))}
+     {:box b :style {:border "dashed red 1px"}}
+     {:box (bbox/offset-by b (liberate-motion b fixed))}]))

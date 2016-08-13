@@ -1,8 +1,9 @@
 (ns pewpew.bbox
-  (:require [pewpew.interval :as interval])
+  (:require [pewpew.interval :as interval]
+            [pewpew.util :as util])
   (:require-macros
    [cljs.test :refer [is]]
-   [devcards.core :as dc :refer [deftest]]))
+   [devcards.core :as dc :refer [deftest defcard-rg]]))
 
 (defn bbox
   "Returns a normalized bounding box."
@@ -108,6 +109,24 @@
   "The `union` function will correctly handle malformed bounding boxes."
   (is (= (union [10 10 0 0] [20 20]) [0 0 20 20])))
 
+(defcard-rg union-ex
+  (let [a [0 0 30 30]
+        b [20 20 40 40]
+        c [80 0 120 30]
+        d [85 5 110 15]
+        e [150 0 180 20]
+        f [160 25 190 40]]
+    [util/boxes-component {:width 200 :height 50}
+     {:box a}
+     {:box b}
+     {:box (union a b) :style {:border-color "#a44"}}
+     {:box c}
+     {:box d}
+     {:box (union c d) :style {:border-color "#a44"}}
+     {:box e}
+     {:box f}
+     {:box (union e f) :style {:border-color "#a44"}}]))
+
 (defn intersection
   "Returns the bounding box that is entirely contained in both of the input
   bounding boxes"
@@ -136,3 +155,21 @@
   produce the appropriate degenerate box."
   (is (= (intersection [0 0 10 10] [10 0 20 10]) [10 0 10 10]))
   (is (= (intersection [0 0 10 10] [10 10 20 20]) (bbox 10 10))))
+
+(defcard-rg intersection-ex
+  (let [a [0 0 30 30]
+        b [20 20 40 40]
+        c [80 0 120 30]
+        d [85 5 110 15]
+        e [150 0 180 20]
+        f [160 25 190 40]]
+    [util/boxes-component {:width 200 :height 50}
+     {:box a}
+     {:box b}
+     {:box (intersection a b) :style {:background-color "#a44"}}
+     {:box c}
+     {:box d}
+     {:box (intersection c d) :style {:background-color "#a44"}}
+     {:box e}
+     {:box f}
+     {:box (intersection e f) :style {:background-color "#a44"}}]))
