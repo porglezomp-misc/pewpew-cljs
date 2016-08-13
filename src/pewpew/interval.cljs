@@ -4,10 +4,14 @@
    [devcards.core :as dc :refer [deftest]]))
 
 (defn interval
-  "Returns an interval where the first number is smaller, or nil."
+  "Returns an interval where the first number is smaller, or nil. If passed a
+  single number, returns an empty interval representing that point, like [3 3]."
   ([xs]
-   (when-let [[x0 x1] xs]
-     (interval x0 x1)))
+   (cond
+     (nil? xs) nil
+     (coll? xs) (when-let [[x0 x1] xs]
+                  (interval x0 x1))
+     :else [xs xs]))
   ([x0 x1]
    [(min x0 x1) (max x0 x1)]))
 
@@ -16,7 +20,30 @@
   (is (= (interval 0 10) [0 10]))
   (is (= (interval nil) nil))
   "It can be called either on a vec or with two arguments."
-  (is (= (interval 10 0) (interval [10 0]))))
+  (is (= (interval 10 0) (interval [10 0])))
+  "When `interval` is called on a single number it returns an empty interval
+  representing that point."
+  (is (= (interval 3) (interval 3 3))))
+
+(defn length
+  "Returns the distance between the first and last endpoints of the interval.
+  For empty intervals representing points, returns 0, for nil intervals, returns
+  nil."
+  [x]
+  (if-let [[x0 x1] (interval x)]
+    (- x1 x0)))
+
+(deftest length-test
+  "The `length` function returns the distance between the first and last
+  endpoints of an interval."
+  (is (= (length (interval 3 10)) 7))
+  "When `length` is called on an empty interval, it returns 0, and when called
+  on `nil` it returns `nil`."
+  (is (= (length (interval 2)) 0))
+  (is (= (length nil) nil))
+  "It can correctly handle any input convertible to an interval."
+  (is (= (length 3) 0))
+  (is (= (length [5 1]) 4)))
 
 (defn union
   "Returns the smallest interval that contains both the input intervals. If one
@@ -65,9 +92,3 @@
   (is (= (intersection [0 10] [10 20]) [10 10]))
   "`intersection` can correctly accept malformed intervals as input."
   (is (= (intersection [30 10] [20 0]) [10 20])))
-
-(defn overlap-size
-  [a b]
-  (if-let [[low high] (intersection a b)]
-    (- high low)
-    0))

@@ -2,7 +2,9 @@
   (:require [cljs.core.async :as async :refer [<! >!]]
             cljsjs.react-pixi
             [pewpew.bbox :as bbox]
+            [pewpew.collision :as collision]
             [pewpew.interval :as interval]
+            [pewpew.util :as util :refer [indexed dbg log]]
             [reagent.core :as r]
             [taoensso.sente :as sente]
             [tmx.core :as tmx])
@@ -10,14 +12,9 @@
    [cljs.core.async.macros :refer [go]]
    [reagent.ratom :refer [reaction]]))
 
-
 (def stage (r/adapt-react-class js/ReactPIXI.Stage))
 (def sprite (r/adapt-react-class js/ReactPIXI.Sprite))
 (def container (r/adapt-react-class js/ReactPIXI.DisplayObjectContainer))
-
-(defn indexed [s] (map-indexed vector s))
-(defn log [& x] (apply (.-log js/console) x))
-(defn dbg [x] (doto x log))
 
 (set! js/PIXI.SCALE_MODES.DEFAULT js/PIXI.SCALE_MODES.NEAREST)
 

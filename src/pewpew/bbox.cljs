@@ -5,7 +5,7 @@
    [devcards.core :as dc :refer [deftest]]))
 
 (defn bbox
-  "Returns a normalized bounding box"
+  "Returns a normalized bounding box."
   ([xs]
    (case (count xs)
      2 (let [[x y] xs]
@@ -29,8 +29,59 @@
   "Passing a single point to `bbox` produces an empty box at that point."
   (is (= (bbox [2 3]) [2 3 2 3])))
 
+(defn x-interval
+  "Returns an interval representing the horizontal extent of the bounding box."
+  [box]
+  (when-let [[x0 _ x1 _] (bbox box)]
+    (interval/interval x0 x1)))
+
+(defn y-interval
+  "Returns an interval representing the vertical extent of the bounding box."
+  [box]
+  (when-let [[_ y0 _ y1] (bbox box)]
+    (interval/interval y0 y1)))
+
+(deftest dimension-interval-test
+  "The horizontal and vertical intervals of a bounding box can be extracted with `x-interval` and `y-interval`."
+  (is (= (x-interval [0 30 10 40]) [0 10]))
+  (is (= (y-interval [0 30 10 40]) [30 40]))
+  "The intervals of a `nil` box are `nil`."
+  (is (= (x-interval nil) nil))
+  (is (= (y-interval nil) nil))
+  "Degenerate boxes produce point intervals."
+  (is (= (x-interval [0 10]) (interval/interval 0)))
+  (is (= (y-interval [0 10]) (interval/interval 10))))
+
+(defn center
+  "Returns the point representing the center of the bounding box."
+  [box]
+  (when-let [[x0 y0 x1 y1] (bbox box)]
+    [(/ (+ x0 x1) 2)
+     (/ (+ y0 y1) 2)]))
+
+(deftest center-test
+  (is (= (center [0 0 10 10]) [5 5]))
+  (is (= (center nil) nil))
+  (is (= (center [10 10 0 0]) [5 5]))
+  (is (= (center [4 2]) [4 2])))
+
+(defn offset-by
+  "Returns a new bounding box offset from the original."
+  ([box offset]
+   (let [[x y] offset]
+     (offset-by box x y)))
+  ([box x y]
+   (when-let [[x0 y0 x1 y1] (bbox box)]
+     [(+ x0 x) (+ y0 y) (+ x1 x) (+ y1 y)])))
+
+(deftest offset-test
+  (is (= (offset-by nil 10 10) nil))
+  (is (= (offset-by [0 0 10 10] 5 0) [5 0 15 10]))
+  (is (= (offset-by [0 0 10 10] 0 5) [0 5 10 15]))
+  (is (= (offset-by [0 0] [4 2]) (bbox 4 2))))
+
 (defn union
-  "Returns the smallest bounding box that contains both bounding boxes"
+  "Returns the smallest bounding box that contains both bounding boxes."
   [a b]
   (or (when-let [[ax0 ay0 ax1 ay1] (bbox a)]
         (when-let [[bx0 by0 bx1 by1] (bbox b)]
