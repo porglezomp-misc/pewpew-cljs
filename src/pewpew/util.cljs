@@ -4,6 +4,9 @@
 (defn log [& x] (apply (.-log js/console) x))
 (defn dbg [x] (doto x log))
 
+(defn floor [x] (.floor js/Math x))
+(defn ceil [x] (.ceil js/Math x))
+
 (defn box-component
   [{:keys [box style]}]
   (when-let [[x0 y0 x1 y1] box]

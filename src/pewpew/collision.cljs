@@ -4,7 +4,7 @@
             [pewpew.util :as util]
             [reagent.core :as r])
   (:require-macros
-   [cljs.test :refer [is]]
+   [cljs.test :refer [is deftest]]
    #_[devcards.core :as dc :refer [deftest defcard defcard-rg]]))
 
 (defn overlap?

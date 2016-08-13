@@ -4,7 +4,7 @@
             [pewpew.bbox :as bbox]
             [pewpew.collision :as collision]
             [pewpew.interval :as interval]
-            [pewpew.util :as util :refer [indexed dbg log]]
+            [pewpew.util :as util :refer [indexed dbg log floor ceil]]
             [reagent.core :as r]
             [taoensso.sente :as sente]
             [tmx.core :as tmx])
@@ -80,19 +80,15 @@
 
 (defn make-collision-grid
   []
-  (let [layers (get-in @game-world [:tilemap :layers])
-        tile-width @tile-width
-        tile-height @tile-height]
+  (let [layers (get-in @game-world [:tilemap :layers])]
     (merge-matrices
      (for [layer layers]
        (when (get-in layer [:properties :solid] false)
          (for [[rowid row] (indexed (:data layer))]
            (for [[colid tile] (indexed row)]
              (when (pos? tile)
-               (let [x0 (* colid tile-width)
-                     y0 (* rowid tile-width)
-                     x1 (+ x0 tile-width)
-                     y1 (+ y0 tile-height)]
+               (let [x0 colid y0 rowid
+                     x1 (+ x0 1) y1 (+ y0 1)]
                  {:tile tile
                   :bbox [x0 y0 x1 y1]})))))))))
 
@@ -135,7 +131,7 @@
           :backgroundcolor (some-> (get-in @world [:tilemap :background-color])
                                    (clojure.string/replace #"#" "0x")
                                    js/Number)}
-   [container {:x 8 :y (- 300 16) :scale @world-coordinate-scale}
+   [container {:x 8 :y (- 300 32) :scale @world-coordinate-scale}
     [tilemap (:tilemap @world)]
     (for [[i the-player] (indexed (:players @world))]
       ^{:key i} [player the-player])]])
@@ -143,11 +139,67 @@
 (r/render-component [game-root game-world]
                     (. js/document (getElementById "app")))
 
-(defn on-js-reload
+(defn on-js-reload [] nil)
+
+(defn get-colliders
+  [box]
+  (when-let [[x0 y0 x1 y1] (map floor (bbox/bbox box))]
+    (mapcat identity
+            (for [row (range y0 (+ y1 1))
+                  col (range x0 (+ x1 1))]
+              (get-in @collision-grid [row col])))))
+
+(defn resolve-collision
+  [dynamic statics]
+  (loop [x 0
+         y 0
+         [static & statics] statics]
+    (let [new-dynamic (bbox/offset-by dynamic x y)]
+      (if-not static
+        [x y]
+        (if-let [[dx dy] (collision/liberate-motion new-dynamic (:bbox static))]
+          (recur (+ x dx) (+ y dy) statics))))))
+
+(defn adjust-delta
+  [delta push]
+  (cond
+    (pos? push) (max 0 delta)
+    (neg? push) (min 0 delta)
+    :else delta))
+
+(defn update-player
+  [player]
+  (let [next-x (+ (:x player) (/ (:dx player) 60))
+        next-y (+ (:y player) (/ (:dy player) 60))
+        player-bbox (bbox/offset-by (:bbox player) next-x next-y)
+        colliders (get-colliders player-bbox)
+        [offset-x offset-y] (resolve-collision player-bbox colliders)
+        next-x (+ offset-x next-x)
+        next-y (+ offset-y next-y)
+        next-dx (-> (:dx player)
+                    (* (if (not= offset-y 0) 0.90 0.99))
+                    (adjust-delta offset-x))
+        next-dy (-> (:dy player)
+                    (- (/ 9.8 60))
+                    (adjust-delta offset-y))]
+    (when (> next-y -3)
+      (assoc player :x next-x :y next-y :dx next-dx :dy next-dy))))
+
+(defn do-update
+  [world]
+  (let [players (->> (:players world)
+                     (map update-player)
+                     (filter identity))]
+    (assoc-in world [:players] (vec players))))
+
+(def update-fn (atom do-update))
+(defn update!
   []
-  ;; optionally touch your app-state to force rerendering depending on
-  ;; your application
-  #_(swap! app-state update-in [:__figwheel_counter] inc))
+  (swap! game-world @update-fn)
+  (r/next-tick update!))
+
+(reset! update-fn do-update)
+(defonce update-loop (r/next-tick update!))
 
 (defn load-map!
   [map-url]
