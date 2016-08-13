@@ -7,7 +7,7 @@
   :min-lein-version "2.6.1"
 
   :dependencies [[org.clojure/clojure "1.8.0"]
-                 [org.clojure/clojurescript "1.9.89"]
+                 [org.clojure/clojurescript "1.9.198"]
                  [org.clojure/core.async "0.2.385"
                   :exclusions [org.clojure/tools.reader]]
                  [reagent "0.6.0-rc"]
@@ -16,7 +16,7 @@
                  [com.taoensso/sente "1.10.0"]
                  [funcool/tubax "0.2.0"]
                  [cljs-http "0.1.41"]
-                 [devcards "0.2.1-7"]]
+                 #_[devcards "0.2.1-7"]]
 
   :plugins [[lein-figwheel "0.5.4-7"]
             [lein-cljsbuild "1.1.3" :exclusions [[org.clojure/clojure]]]]
@@ -47,7 +47,7 @@
                            ;; To console.log CLJS data-structures make sure you enable devtools in Chrome
                            ;; https://github.com/binaryage/cljs-devtools
                            :preloads [devtools.preload]}}
-               {:id "devcards"
+               #_{:id "devcards"
                 :source-paths ["src"]
                 :figwheel {:on-jsload "pewpew.core/on-js-reload"
                            :devcards true
@@ -112,7 +112,7 @@
   ;; https://github.com/bhauman/lein-figwheel/wiki/Using-the-Figwheel-REPL-within-NRepl
 
 
-  :profiles {:dev {:dependencies [[binaryage/devtools "0.7.2"]
+  :profiles {:dev {:dependencies [[binaryage/devtools "0.8.1"]
                                   [figwheel-sidecar "0.5.4-7"]
                                   [com.cemerick/piggieback "0.2.1"]]
                    ;; need to add dev source path here to get user.clj loaded

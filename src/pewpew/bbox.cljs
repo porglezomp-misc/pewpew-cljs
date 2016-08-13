@@ -2,8 +2,8 @@
   (:require [pewpew.interval :as interval]
             [pewpew.util :as util])
   (:require-macros
-   [cljs.test :refer [is]]
-   [devcards.core :as dc :refer [deftest defcard-rg]]))
+   [cljs.test :refer [is deftest]]
+   #_[devcards.core :as dc :refer [deftest defcard-rg]]))
 
 (defn bbox
   "Returns a normalized bounding box."
@@ -109,7 +109,7 @@
   "The `union` function will correctly handle malformed bounding boxes."
   (is (= (union [10 10 0 0] [20 20]) [0 0 20 20])))
 
-(defcard-rg union-ex
+#_(defcard-rg union-ex
   (let [a [0 0 30 30]
         b [20 20 40 40]
         c [80 0 120 30]
@@ -156,7 +156,7 @@
   (is (= (intersection [0 0 10 10] [10 0 20 10]) [10 0 10 10]))
   (is (= (intersection [0 0 10 10] [10 10 20 20]) (bbox 10 10))))
 
-(defcard-rg intersection-ex
+#_(defcard-rg intersection-ex
   (let [a [0 0 30 30]
         b [20 20 40 40]
         c [80 0 120 30]

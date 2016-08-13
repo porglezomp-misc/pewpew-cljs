@@ -1,7 +1,7 @@
 (ns pewpew.interval
   (:require-macros
-   [cljs.test :refer [is]]
-   [devcards.core :as dc :refer [deftest]]))
+   [cljs.test :refer [is deftest]]
+   #_[devcards.core :as dc :refer [deftest]]))
 
 (defn interval
   "Returns an interval where the first number is smaller, or nil. If passed a

@@ -10,7 +10,8 @@
             [tmx.core :as tmx])
   (:require-macros
    [cljs.core.async.macros :refer [go]]
-   [reagent.ratom :refer [reaction]]))
+   [reagent.ratom :refer [reaction]]
+   #_[devcards.core :as dc :refer [defcard-rg]]))
 
 (def stage (r/adapt-react-class js/ReactPIXI.Stage))
 (def sprite (r/adapt-react-class js/ReactPIXI.Sprite))
