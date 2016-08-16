@@ -10,11 +10,12 @@
 (defn ->tileset
   [obj]
   (let [{:keys [firstgid name tilewidth tileheight tilecount columns]} (:attributes obj)
-        image-source (-> obj :content
-                       (->> (filter #(-> % :tag (= :image))))
-                       :attributes
-                       :source
-                       str)]
+        image-source (some->> (:content obj)
+                          (filter #(-> % :tag (= :image)))
+                          first
+                          :attributes
+                          :source
+                          str)]
     {:firstgid (js/Number firstgid)
      :name name
      :image-source image-source

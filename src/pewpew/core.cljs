@@ -1,65 +1,30 @@
 (ns pewpew.core
   (:require [cljs.core.async :as async :refer [<! >!]]
-            cljsjs.react-pixi
+            [impi.core :as impi]
             [pewpew.bbox :as bbox]
             [pewpew.collision :as collision]
             [pewpew.interval :as interval]
-            [pewpew.util :as util :refer [indexed dbg log floor ceil]]
-            [reagent.core :as r]
+            [pewpew.util :as util :refer [ceil dbg floor indexed log]]
             [taoensso.sente :as sente]
             [tmx.core :as tmx])
   (:require-macros
    [cljs.core.async.macros :refer [go]]
-   [reagent.ratom :refer [reaction]]
-   #_[devcards.core :as dc :refer [defcard-rg]]))
-
-(def stage (r/adapt-react-class js/ReactPIXI.Stage))
-(def sprite (r/adapt-react-class js/ReactPIXI.Sprite))
-(def container (r/adapt-react-class js/ReactPIXI.DisplayObjectContainer))
-
-(set! js/PIXI.SCALE_MODES.DEFAULT js/PIXI.SCALE_MODES.NEAREST)
+   [devcards.core :as dc :refer [defcard]]))
 
 ;; define your app data so that it doesn't get over-written on reload
-(defonce game-world (r/atom {:tilemap nil}))
+(defonce game-world (atom {:tilemap nil :players []}))
 
-(defn make-world-coordinate-scale []
-  (js/PIXI.Point. 16 -16))
-(def world-coordinate-scale (r/track! make-world-coordinate-scale))
+(defn make-spawn-points
+  [objects]
+  (filter #(-> % :type (= "Spawn")) objects))
 
-(defn make-object-coordinate-scale []
-  (js/PIXI.Point. (/ 1 16) (/ -1 16)))
-(def object-coordinate-scale (r/track! make-object-coordinate-scale))
-
-(def tilemap-texture (.fromImage js/PIXI.Texture "/img/tileset0.png"))
-
-(defn make-tile-texture
-  [base x y w h]
-  (let [x (* x w)
-        y (* y h)
-        frame (js/PIXI.Rectangle. x y w h)]
-    (js/PIXI.Texture. tilemap-texture frame)))
-
-(def tile-textures
-  (reaction
-   (when-let [tilesets (get-in @game-world [:tilemap :tilesets])]
-     (apply merge
-            (for [tileset tilesets
-                  tileid (range (:tilecount tileset))]
-              (let [id (+ (:firstgid tileset) tileid)
-                    [w h] (:tilesize tileset)
-                    [x y] ((juxt mod quot) tileid (:rows tileset))]
-                {id (make-tile-texture tilemap-texture x y w h)}))))))
-
-(def spawn-points
-  (reaction
-   (when-let [objects (get-in @game-world [:tilemap :objects])]
-     (filter #(-> % :type (= "Spawn")) objects))))
-
-(def player-texture (.fromImage js/PIXI.Texture "/img/player0.png"))
-
-(def player-frames
-  (vec (for [i (range 4)]
-         (js/PIXI.Texture. player-texture (js/PIXI.Rectangle. (* 16 i) 0 16 16)))))
+(defonce spawn-points (atom []))
+(add-watch game-world ::spawn-points
+           (fn [_ _ old new]
+             (let [old (get-in old [:tilemap :objects])
+                   new (get-in new [:tilemap :objects])]
+               (if (not= old new)
+                 (reset! spawn-points (make-spawn-points new))))))
 
 (defn merge-matrices
   "Takes a sequence of matrices (a (vec (vec item))) and returns a
@@ -75,69 +40,105 @@
            filter-falsy
            (apply merge-matrix)))))
 
-(def tile-width (r/cursor game-world [:tilemap :tile-width]))
-(def tile-height (r/cursor game-world [:tilemap :tile-height]))
-
 (defn make-collision-grid
-  []
-  (let [layers (get-in @game-world [:tilemap :layers])]
-    (merge-matrices
-     (for [layer layers]
-       (when (get-in layer [:properties :solid] false)
-         (for [[rowid row] (indexed (:data layer))]
-           (for [[colid tile] (indexed row)]
-             (when (pos? tile)
-               (let [x0 colid y0 rowid
-                     x1 (+ x0 1) y1 (+ y0 1)]
-                 {:tile tile
-                  :bbox [x0 y0 x1 y1]})))))))))
+  [layers]
+  (merge-matrices
+   (for [layer layers]
+     (when (get-in layer [:properties :solid] false)
+       (for [[rowid row] (indexed (:data layer))]
+         (for [[colid tile] (indexed row)]
+           (when (pos? tile)
+             (let [x0 colid y0 rowid
+                   x1 (+ x0 1) y1 (+ y0 1)]
+               {:tile tile
+                :bbox [x0 y0 x1 y1]}))))))))
 
-(def collision-grid (r/track! make-collision-grid))
+(defonce collision-grid (atom nil))
+(add-watch game-world ::collision-grid
+           (fn [_ _ old new]
+             (let [old (get-in old [:tilemap :layers])
+                   new (get-in new [:tilemap :layers])]
+               (if (not= old new)
+                 (reset! collision-grid (make-collision-grid new))))))
+
+(defn make-tile-textures
+  [tilesets]
+  (reduce merge
+          (for [tileset tilesets
+                id (range (:tilecount tileset))]
+            (let [[w h] (:tilesize tileset)
+                  cols (:columns tileset)
+                  start-id (:firstgid tileset)
+                  row (quot id cols)
+                  col (mod id cols)]
+              {(+ id start-id)
+               {:pixi.texture/source (str "/" (:image-source tileset))
+                :pixi.texture/frame [(* col w) (* row h) w h]}}))))
+
+(defonce tile-textures (atom {}))
+(add-watch game-world ::tile-textures
+           (fn [_ _ old new]
+             (let [old (get-in old [:tilemap :tilesets])
+                   new (get-in new [:tilemap :tilesets])]
+               (if (not= old new)
+                 (reset! tile-textures (make-tile-textures new))))))
+
+(defn tile-texture
+  [id]
+  (let [row (quot (- id 1) 4)
+        col (mod (- id 1) 4)
+        x (* 16 col)
+        y (* 16 row)]
+    {:pixi.texture/source "/img/tileset0.png"
+     :pixi.texture/frame [x y 16 16]}))
 
 (defn tile
-  [{:keys [x y texture]}]
-  (let [texture (get @tile-textures texture)]
-    [sprite {:texture texture :x x :y y :scale @object-coordinate-scale}]))
-
-(defn tile-row
-  [i row]
-  [container {:y i}
-   (for [[i tile-id] (indexed row)]
-     (when (pos? tile-id)
-       ^{:key i} [tile {:x i :y 0 :texture tile-id}]))])
+  [x y tile-id]
+  {:impi/key (keyword (str "tile" x "x" y))
+   :pixi.object/type :pixi.object.type/sprite
+   :pixi.object/scale (map / [16 -16])
+   :pixi.object/position [x y]
+   :pixi.sprite/texture (get @tile-textures tile-id {:pixi.texture/source "/img/tileset0.png"
+                                                     :pixi.texture/frame [0 0 16 16]})})
 
 (defn layer
-  [the-layer]
-  [container {}
-   (for [[i row] (indexed (:data the-layer))]
-     ^{:key i} [tile-row i row])])
+  [{:keys [name data]}]
+  {:impi/key name
+   :pixi.object/type :pixi.object.type/container
+   :pixi.container/children
+   (keep identity
+         (for [[y row]     (indexed data)
+               [x tile-id] (indexed row)]
+           (when (pos? tile-id)
+             (tile x y tile-id))))})
 
-(defn tilemap
-  [the-map]
-  [container {}
-   (for [the-layer (:layers the-map)]
-     ^{:key (:name the-layer)} [layer the-layer])])
+(defn data
+  [x y]
+  {:impi/key :guy
+   :pixi.object/type :pixi.object.type/sprite
+   :pixi.object/position [x y]
+   :pixi.object/rotation 0
+   :pixi.sprite/anchor [0.5 0.5]
+   :pixi.sprite/texture {:pixi.texture/source "/img/player0.png"
+                         :pixi.texture/frame [0 0 16 16]}})
 
-(defn player
-  [{:keys [x y]}]
-  [sprite {:x x :y y
-           :texture (player-frames 0)
-           :scale @object-coordinate-scale
-           :anchor (js/PIXI.Point. 0.5 0)}])
-
-(defn game-root
+(defn root
   [world]
-  [stage {:width 400 :height 300
-          :backgroundcolor (some-> (get-in @world [:tilemap :background-color])
-                                   (clojure.string/replace #"#" "0x")
-                                   js/Number)}
-   [container {:x 8 :y (- 300 32) :scale @world-coordinate-scale}
-    [tilemap (:tilemap @world)]
-    (for [[i the-player] (indexed (:players @world))]
-      ^{:key i} [player the-player])]])
+  {:pixi/renderer
+   {:pixi.renderer/size             [400 300]
+    :pixi.renderer/background-color 0xbbbbbb}
+   :pixi/stage
+   {:impi/key         :stage
+    :pixi.object/type :pixi.object.type/container
+    :pixi.object/scale [16 -16]
+    :pixi.object/position [8 (- 300 24)]
+    :pixi.container/children
+    (for [the-layer (-> @game-world :tilemap :layers)]
+      (layer the-layer))}})
 
-(r/render-component [game-root game-world]
-                    (. js/document (getElementById "app")))
+(let [element (.getElementById js/document "app")]
+  (impi/mount :example @game-world element)
+  (add-watch game-world ::mount (fn [_ _ _ s] (impi/mount :example (root s) element))))
 
 (defn on-js-reload [] nil)
 
@@ -192,15 +193,6 @@
                      (filter identity))]
     (assoc-in world [:players] (vec players))))
 
-(def update-fn (atom do-update))
-(defn update!
-  []
-  (swap! game-world @update-fn)
-  (r/next-tick update!))
-
-(reset! update-fn do-update)
-(defonce update-loop (r/next-tick update!))
-
 (defn load-map!
   [map-url]
   (go
@@ -209,6 +201,15 @@
                               (map #(update-in % [:data] reverse))
                               vec)
           tilemap (assoc tilemap :layers flipped-layers)]
-      (swap! game-world assoc-in [:tilemap] tilemap))))
+      (swap! game-world assoc :tilemap tilemap))))
 
 (load-map! "/map.tmx")
+
+(def update-fn (atom do-update))
+(defn update!
+  []
+  (swap! game-world @update-fn)
+  (js/requestAnimationFrame update!))
+
+(reset! update-fn do-update)
+(defonce update-loop (update!))
