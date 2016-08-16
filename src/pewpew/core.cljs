@@ -112,13 +112,14 @@
            (when (pos? tile-id)
              (tile x y tile-id))))})
 
-(defn data
-  [x y]
-  {:impi/key :guy
+(defn player
+  [{:keys [x y bbox id]}]
+  {:impi/key (keyword (str "player" id))
    :pixi.object/type :pixi.object.type/sprite
    :pixi.object/position [x y]
    :pixi.object/rotation 0
-   :pixi.sprite/anchor [0.5 0.5]
+   :pixi.object/scale (map / [16 -16])
+   :pixi.sprite/anchor [0.5 0]
    :pixi.sprite/texture {:pixi.texture/source "/img/player0.png"
                          :pixi.texture/frame [0 0 16 16]}})
 
@@ -126,19 +127,35 @@
   [world]
   {:pixi/renderer
    {:pixi.renderer/size             [400 300]
-    :pixi.renderer/background-color 0xbbbbbb}
+    :pixi.renderer/background-color (-> (get-in world [:tilemap :background-color])
+                                        (clojure.string/replace #"#" "0x")
+                                        js/Number)}
    :pixi/stage
    {:impi/key         :stage
     :pixi.object/type :pixi.object.type/container
     :pixi.object/scale [16 -16]
     :pixi.object/position [8 (- 300 24)]
     :pixi.container/children
-    (for [the-layer (-> @game-world :tilemap :layers)]
-      (layer the-layer))}})
+    (array-map
+     :layers
+     {:impi/key :layers
+      :pixi.object/type :pixi.object.type/container
+      :pixi.container/children
+      (for [the-layer (get-in world [:tilemap :layers])]
+        (layer the-layer))}
+     :players
+     {:impi/key :players
+      :pixi.object/type :pixi.object.type/container
+      :pixi.container/children
+      (for [[i the-player] (indexed (:players world))]
+        (player (assoc the-player :id i)))})}})
 
 (let [element (.getElementById js/document "app")]
   (impi/mount :example @game-world element)
-  (add-watch game-world ::mount (fn [_ _ _ s] (impi/mount :example (root s) element))))
+  (add-watch game-world ::mount
+             (fn [_ _ old new]
+               (when (not= old new)
+                 (impi/mount :example (root new) element)))))
 
 (defn on-js-reload [] nil)
 
@@ -169,29 +186,49 @@
     :else delta))
 
 (defn update-player
-  [player]
-  (let [next-x (+ (:x player) (/ (:dx player) 60))
-        next-y (+ (:y player) (/ (:dy player) 60))
+  [player dt]
+  (let [next-dy (-> (:dy player)
+                    (- (* 9.8 dt)))
+        next-x (+ (:x player) (* (:dx player) dt))
+        next-y (+ (:y player) (* next-dy dt))
         player-bbox (bbox/offset-by (:bbox player) next-x next-y)
         colliders (get-colliders player-bbox)
         [offset-x offset-y] (resolve-collision player-bbox colliders)
         next-x (+ offset-x next-x)
         next-y (+ offset-y next-y)
         next-dx (-> (:dx player)
-                    (* (if (not= offset-y 0) 0.90 0.99))
+                    (* (if (not= offset-y 0)
+                         (- 1 (* 0.1 dt))
+                         (- 1 (* 0.01 dt))))
                     (adjust-delta offset-x))
-        next-dy (-> (:dy player)
-                    (- (/ 9.8 60))
-                    (adjust-delta offset-y))]
+        next-dy (adjust-delta next-dy offset-y)]
     (when (> next-y -3)
       (assoc player :x next-x :y next-y :dx next-dx :dy next-dy))))
 
 (defn do-update
-  [world]
+  [world dt]
   (let [players (->> (:players world)
-                     (map update-player)
+                     (map #(update-player % dt))
                      (filter identity))]
     (assoc-in world [:players] (vec players))))
+
+(def target-fps 60)
+(def timestep (/ target-fps))
+
+(defonce update! (atom nil))
+(defn -update!
+  [extra-time last-timestamp timestamp]
+  (let [dt (/ (- timestamp last-timestamp) 1000)
+        extra-time (loop [extra-time (+ extra-time dt)]
+                     (cond
+                       (< extra-time timestep) extra-time
+                       (> extra-time (* timestep 16)) (do (log "FALLING BEHIND!" dt) 0)
+                       :else (do (swap! game-world #(do-update % timestep))
+                                 (recur (- extra-time timestep)))))]
+    (js/requestAnimationFrame (partial @update! extra-time timestamp))))
+
+(reset! update! -update!)
+(defonce update-loop (js/requestAnimationFrame (partial @update! 0 0)))
 
 (defn load-map!
   [map-url]
@@ -204,12 +241,3 @@
       (swap! game-world assoc :tilemap tilemap))))
 
 (load-map! "/map.tmx")
-
-(def update-fn (atom do-update))
-(defn update!
-  []
-  (swap! game-world @update-fn)
-  (js/requestAnimationFrame update!))
-
-(reset! update-fn do-update)
-(defonce update-loop (update!))
