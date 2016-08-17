@@ -1,8 +1,7 @@
 (ns pewpew.collision
   (:require [pewpew.bbox :as bbox]
             [pewpew.interval :as interval]
-            [pewpew.util :as util]
-            [reagent.core :as r])
+            [pewpew.util :as util])
   (:require-macros
    [cljs.test :refer [is deftest]]
    #_[devcards.core :as dc :refer [deftest defcard defcard-rg]]))
