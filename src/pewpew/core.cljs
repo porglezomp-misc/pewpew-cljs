@@ -8,10 +8,8 @@
             [taoensso.sente :as sente]
             [tmx.core :as tmx])
   (:require-macros
-   [cljs.core.async.macros :refer [go]]
-   [devcards.core :as dc :refer [defcard]]))
+   [cljs.core.async.macros :refer [go]]))
 
-;; define your app data so that it doesn't get over-written on reload
 (defonce game-world (atom {:tilemap nil :players [] :tile-textures {}}))
 
 (defn make-spawn-points
@@ -32,7 +30,7 @@
   dropping any nil elements or nil matrices in the process."
   [matrices]
   (when-not (empty? matrices)
-    (let [filter-falsy (partial filter identity)
+    (let [filter-falsy (partial keep identity)
           non-nil-vec (comp vec filter-falsy vector)
           merge-row (partial (comp vec map) non-nil-vec)
           merge-matrix (partial (comp vec map) merge-row)]
@@ -44,7 +42,7 @@
   [layers]
   (merge-matrices
    (for [layer layers]
-     (when (get-in layer [:properties :solid] false)
+     (when (get-in layer [:properties :solid])
        (for [[rowid row] (indexed (:data layer))]
          (for [[colid tile] (indexed row)]
            (when (pos? tile)

@@ -10,7 +10,7 @@
                  [org.clojure/clojurescript "1.9.198"]
                  [org.clojure/core.async "0.2.385"
                   :exclusions [org.clojure/tools.reader]]
-                 #_[com.taoensso/sente "1.10.0"]
+                 [com.taoensso/sente "1.10.0"]
                  [funcool/tubax "0.2.0"]
                  [cljs-http "0.1.41"]
                  #_[devcards "0.2.1-7"]
