@@ -212,12 +212,15 @@
 (defn -update!
   [extra-time last-timestamp timestamp]
   (let [dt (/ (- timestamp last-timestamp) 1000)
-        extra-time (loop [extra-time (+ extra-time dt)]
-                     (cond
-                       (< extra-time timestep) extra-time
-                       (> extra-time (* timestep 16)) (do (log "FALLING BEHIND!" dt) 0)
-                       :else (do (swap! game-world #(do-update % timestep))
-                                 (recur (- extra-time timestep)))))]
+        [extra-time world] (loop [extra-time (+ extra-time dt)
+                                  world @game-world]
+                             (cond
+                               (< extra-time timestep) [extra-time world]
+                               (> extra-time (* timestep 16)) (do (log "FALLING BEHIND!" dt)
+                                                                  [0 world])
+                               :else (recur (- extra-time timestep)
+                                            (do-update world timestep))))]
+    (reset! game-world world)
     (js/requestAnimationFrame (partial @update! extra-time timestamp))))
 
 (reset! update! -update!)
