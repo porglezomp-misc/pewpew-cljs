@@ -12,7 +12,7 @@
    [devcards.core :as dc :refer [defcard]]))
 
 ;; define your app data so that it doesn't get over-written on reload
-(defonce game-world (atom {:tilemap nil :players []}))
+(defonce game-world (atom {:tilemap nil :players [] :tile-textures {}}))
 
 (defn make-spawn-points
   [objects]
@@ -75,22 +75,18 @@
                {:pixi.texture/source (str "/" (:image-source tileset))
                 :pixi.texture/frame [(* col w) (* row h) w h]}}))))
 
-(defonce tile-textures (atom {}))
 (add-watch game-world ::tile-textures
            (fn [_ _ old new]
              (let [old (get-in old [:tilemap :tilesets])
                    new (get-in new [:tilemap :tilesets])]
                (if (not= old new)
-                 (reset! tile-textures (make-tile-textures new))))))
+                 (swap! game-world assoc :tile-textures (make-tile-textures new))))))
 
 (defn tile-texture
-  [id]
-  (let [row (quot (- id 1) 4)
-        col (mod (- id 1) 4)
-        x (* 16 col)
-        y (* 16 row)]
-    {:pixi.texture/source "/img/tileset0.png"
-     :pixi.texture/frame [x y 16 16]}))
+  [tile-id]
+  (get-in @game-world [:tile-textures tile-id]
+       {:pixi.texture/source "/img/tileset0.png"
+        :pixi.texture/frame [0 0 16 16]}))
 
 (defn tile
   [x y tile-id]
@@ -98,8 +94,7 @@
    :pixi.object/type :pixi.object.type/sprite
    :pixi.object/scale (map / [16 -16])
    :pixi.object/position [x y]
-   :pixi.sprite/texture (get @tile-textures tile-id {:pixi.texture/source "/img/tileset0.png"
-                                                     :pixi.texture/frame [0 0 16 16]})})
+   :pixi.sprite/texture (tile-texture tile-id )})
 
 (defn layer
   [{:keys [name data]}]
