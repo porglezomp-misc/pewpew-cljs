@@ -128,15 +128,23 @@
 
 (defn on-js-reload [] nil)
 
+(defn add-player!
+  [new-player]
+  (swap! game-world update-in [:players] #(conj % new-player)))
+
 (defn update-player
-  [player]
+  [player dt]
   (let [keys @pressed-keys]
     (cond-> player
       (and (keys :key/left) (not (keys :key/right)))
-      (assoc :flip -1 :dx -3)
+      (->
+       (assoc :flip -1)
+       (update-in [:x] - (* 5 dt)))
 
       (and (keys :key/right) (not (keys :key/left)))
-      (assoc :flip 1 :dx 3)
+      (->
+       (assoc :flip 1)
+       (update-in [:x] + (* 5 dt)))
 
       (and (keys :key/up) (:grounded player))
       (assoc :dy 6))))
@@ -144,13 +152,17 @@
 (defn do-update
   [world dt]
   (let [players (->> (:players world)
-                     (map update-player)
+                     (map #(update-player % dt))
                      (map #(physics/update-player % dt))
                      (keep identity))]
     (assoc-in world [:players] (vec players))))
 
 (def target-fps 60)
 (def timestep (/ target-fps))
+
+(defn map->world
+  [x y]
+  [(/ x 16) (/ (- 192 y) 16)])
 
 (defonce update! (atom nil))
 (defn -update!
@@ -168,7 +180,14 @@
 
                                :else
                                (recur (- extra-time timestep)
-                                      (do-update world timestep))))]
+                                      (do-update world timestep))))
+        world (if-not (pos? (count (:players world)))
+                (let [spawn-point (rand-nth @spawn-points)
+                      x (+ (:x spawn-point) (/ (:width spawn-point) 2))
+                      y (+ (:y spawn-point) (/ (:height spawn-point) 2))
+                      [x y] (map->world x y)]
+                  (update-in world [:players] #(conj % {:x x :y y :dx 0 :dy 0 :bbox [-0.25 0 0.25 1]})))
+                world)]
     (reset! game-world world)
     (js/requestAnimationFrame (partial @update! extra-time timestamp))))
 
@@ -222,7 +241,3 @@
     (js/addEventListener "keydown" key-down)
     (js/addEventListener "keyup" key-up)
     :done))
-
-(defn add-player!
-  [new-player]
-  (swap! game-world update-in [:players] #(conj % new-player)))
